@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vanessa</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #101418; color: #fff; font-family: sans-serif; }
+    #avatar { width: 100%; height: 70vh; }
+    #controls { display: flex; gap: 12px; padding: 16px; justify-content: center; }
+    button { font-size: 18px; padding: 12px 20px; border-radius: 10px; border: 0; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+      "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/",
+      "@interviewflowai/talking-avatar": "https://cdn.jsdelivr.net/npm/@interviewflowai/talking-avatar@0.1.0/dist/index.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="avatar"></div>
+  <div id="controls">
+    <button id="mic">Parla con me</button>
+    <button id="file">Ascolta un audio</button>
+    <input id="audio" type="file" accept="audio/*" hidden>
+  </div>
+
+  <script type="module">
+    import { TalkingAvatar } from "@interviewflowai/talking-avatar";
+
+    // File dell'avatar, caricato nello stesso repository di questa pagina
+    const AVATAR_URL = "./brunette-t.glb";
+
+    const avatar = new TalkingAvatar({
+      container: document.getElementById("avatar"),
+      avatarUrl: AVATAR_URL,
+    });
+
+    // Dal clic parte l'audio: i browser lo richiedono
+    document.getElementById("file").onclick = () => document.getElementById("audio").click();
+    document.getElementById("audio").onchange = (e) => {
+      const f = e.target.files[0];
+      if (f) avatar.speak(f);
+    };
+
+    // Il microfono muove la bocca dell'avatar con la tua voce
+    document.getElementById("mic").onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      avatar.attachStream(stream);
+    };
+  </script>
+</body>
+</html>
