@@ -1,56 +1,532 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vanessa</title>
-  <style>
-    html, body { margin: 0; height: 100%; background: #101418; color: #fff; font-family: sans-serif; }
-    #avatar { width: 100%; height: 70vh; }
-    #controls { display: flex; gap: 12px; padding: 16px; justify-content: center; }
-    button { font-size: 18px; padding: 12px 20px; border-radius: 10px; border: 0; }
-  </style>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
-      "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/",
-      "@interviewflowai/talking-avatar": "https://cdn.jsdelivr.net/npm/@interviewflowai/talking-avatar@0.1.0/dist/index.js"
-    }
-  }
-  </script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" href="./assistente/favicon.svg" type="image/svg+xml">
+<title>Vanessa — assistente vocale</title>
+<style>
+  :root { --bg:#0a0d12; --card:#121821; --line:#1e2836; --txt:#e8eef7; --muted:#8ea0b8; --acc:#ff8a3d; --acc2:#39d0ff; --err:#ff6b6b; --warn:#ffc46b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  body { display:flex; flex-direction:column; min-height:100dvh; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  header { padding:12px 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; margin:0; color:var(--muted); }
+  header .dot { width:8px; height:8px; border-radius:50%; background:var(--acc2); box-shadow:0 0 10px var(--acc2); }
+  main { flex:1; display:flex; flex-direction:column; overflow-y:auto; padding:14px; gap:12px; max-width:560px; width:100%; margin:0 auto; min-height:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; }
+  .card h2 { margin:0 0 8px; font-size:18px; }
+  .card p { margin:0 0 14px; color:var(--muted); font-size:14px; }
+  label { font-size:14px; }
+  input[type="password"], #textInput { width:100%; padding:13px; border-radius:12px; border:1px solid var(--line); background:#0d131b; color:var(--txt); font-size:16px; }
+  input:focus { outline:2px solid var(--acc2); outline-offset:1px; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:12px; }
+  .primary { width:100%; margin-top:12px; padding:14px; background:var(--acc); color:#131313; font-weight:700; }
+  .ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:8px 12px; font-size:13px; }
+  #avatar { position:relative; height:40vh; min-height:230px; flex:none; border-radius:18px; overflow:hidden; background:#0d131b; border:1px solid var(--line); box-shadow:0 0 0 0 rgba(57,208,255,0); transition:box-shadow .3s ease, filter .3s ease; }
+  #avatar img { width:100%; height:100%; object-fit:cover; object-position:50% 4%; display:block; }
+  #avatar::after { content:""; position:absolute; inset:0; background:linear-gradient(to top, rgba(10,13,18,.55), rgba(10,13,18,0) 26%); pointer-events:none; }
+  #avatar[data-stato="ascolto"] { box-shadow:0 0 0 3px var(--acc2), 0 0 26px rgba(57,208,255,.45); }
+  #avatar[data-stato="pensa"] { box-shadow:0 0 0 2px var(--line); filter:saturate(.65); }
+  #avatar[data-stato="parla"] { box-shadow:0 0 0 3px var(--acc), 0 0 26px rgba(255,138,61,.45); }
+  #log { flex:1 1 auto; max-height:24vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:80px; padding:2px; }
+  .msg { max-width:88%; padding:10px 13px; border-radius:16px; font-size:15px; white-space:pre-wrap; word-wrap:break-word; }
+  .msg.user { align-self:flex-end; background:#1b2836; border-bottom-right-radius:4px; }
+  .msg.bot { align-self:flex-start; background:#16202b; border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .msg.err { align-self:center; background:#2a1414; border:1px solid #4a2222; color:var(--err); font-size:13px; text-align:center; }
+  #status { text-align:center; font-size:13px; color:var(--muted); min-height:20px; letter-spacing:.03em; }
+  .row { display:flex; gap:10px; align-items:center; justify-content:center; }
+  #talk { width:84px; height:84px; border-radius:50%; background:radial-gradient(circle at 50% 40%, #ffb27a, var(--acc) 70%); color:#161616; font-size:26px; display:grid; place-items:center; box-shadow:0 0 0 0 rgba(255,138,61,.5); transition:transform .12s ease; }
+  #talk:active { transform:scale(.96); }
+  #talk.on { animation:pulse 1.6s infinite; background:radial-gradient(circle at 50% 40%, #8ce6ff, var(--acc2) 70%); }
+  #talk[disabled] { filter:grayscale(1); opacity:.5; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(57,208,255,.45)} 70%{box-shadow:0 0 0 22px rgba(57,208,255,0)} 100%{box-shadow:0 0 0 0 rgba(57,208,255,0)} }
+  .wake { display:flex; align-items:flex-start; gap:10px; background:#0f151d; border:1px solid var(--line); border-radius:14px; padding:11px 13px; }
+  .wake input { width:20px; height:20px; margin:3px 0 0; flex:none; accent-color:var(--acc); }
+  .wake small { display:block; color:var(--muted); font-size:12px; margin-top:3px; line-height:1.4; }
+  .wake .sessione { display:block; margin-top:5px; font-size:12px; color:var(--muted); }
+  .wake .sessione.on { color:var(--acc2); font-weight:600; }
+  .warn { background:#2a2113; border:1px solid #4d3a1a; color:var(--warn); border-radius:14px; padding:11px 13px; font-size:13px; display:flex; flex-direction:column; gap:8px; }
+  .warn button { align-self:flex-start; background:var(--warn); color:#1a1408; font-weight:700; padding:7px 12px; font-size:13px; }
+  form { display:flex; gap:8px; }
+  form input { flex:1; }
+  form button { padding:0 16px; background:#1b2836; color:var(--txt); border:1px solid var(--line); }
+  footer { text-align:center; font-size:11px; color:#5c6b80; padding:6px 18px 12px; }
+  [hidden] { display:none !important; }
+</style>
 </head>
 <body>
-  <div id="avatar"></div>
-  <div id="controls">
-    <button id="mic">Parla con me</button>
-    <button id="file">Ascolta un audio</button>
-    <input id="audio" type="file" accept="audio/*" hidden>
-  </div>
+<header>
+  <h1>Vanessa</h1>
+  <span class="dot" aria-hidden="true"></span>
+</header>
 
-  <script type="module">
-    import { TalkingAvatar } from "@interviewflowai/talking-avatar";
+<main>
+  <section id="setup" class="card" hidden>
+    <h2>Prima di iniziare</h2>
+    <p>Serve una chiave Groq, gratuita e senza carta: la crei su <b>console.groq.com/keys</b> e la incolli qui. Resta salvata solo su questo dispositivo, non viene inviata a nessuno tranne Groq.</p>
+    <label for="keyInput">Chiave Groq (inizia con gsk_)</label>
+    <input id="keyInput" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…">
+    <button id="saveKey" class="primary">Salva e inizia</button>
+    <p id="setupErr" style="color:var(--err);font-size:13px;margin-top:10px" hidden></p>
+  </section>
 
-    // File dell'avatar, caricato nello stesso repository di questa pagina
-    const AVATAR_URL = "./brunette-t.glb";
+  <section id="main" hidden style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0">
+    <div id="avatar" data-stato="fermo">
+      <img src="./assets/vanessa-poliziotta.jpg" alt="Vanessa">
+    </div>
+    <div id="log" aria-live="polite"></div>
+    <div id="status" role="status">Pronto.</div>
+    <div class="row">
+      <button id="talk" aria-label="Parla">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+      </button>
+    </div>
+    <div class="wake">
+      <input id="wakeToggle" type="checkbox">
+      <label for="wakeToggle">Ascolto continuo con la parola <b>«Vanessa»</b>
+        <small>Tiene il microfono aperto: consuma batteria e funziona solo con la pagina visibile.</small>
+        <small id="sessioneInfo" class="sessione">Di' «Vanessa» per iniziare.</small>
+      </label>
+    </div>
+    <div id="wakeWarn" class="warn" role="alert" hidden>
+      <span id="wakeWarnText"></span>
+      <button id="wakeRetry" type="button" hidden>Riprova ora</button>
+    </div>
+    <form id="textForm" autocomplete="off">
+      <input id="textInput" placeholder="Oppure scrivi qui…" aria-label="Testo del messaggio">
+      <button type="submit">Invia</button>
+    </form>
+    <div class="row">
+      <button id="resetKey" class="ghost" type="button">Cambia chiave</button>
+    </div>
+  </section>
+</main>
 
-    const avatar = new TalkingAvatar({
-      container: document.getElementById("avatar"),
-      avatarUrl: AVATAR_URL,
-    });
+<footer>Il volto resta fermo; la voce è quella del browser. La chiave Groq resta su questo dispositivo.</footer>
 
-    // Dal clic parte l'audio: i browser lo richiedono
-    document.getElementById("file").onclick = () => document.getElementById("audio").click();
-    document.getElementById("audio").onchange = (e) => {
-      const f = e.target.files[0];
-      if (f) avatar.speak(f);
+<script src="./wake.js"></script>
+<script type="module">
+(function () {
+  "use strict";
+
+  var KEY = "groq_key_v1";
+  var WAKE_PREF = "wake_v1";
+  var PAROLA = "vanessa";
+  var MODEL = "openai/gpt-oss-120b";
+  var API = "https://api.groq.com/openai/v1/chat/completions";
+  var SYSTEM = [
+    "Sei Vanessa, un assistente personale che parla italiano, con il tono misurato e ironico di un maggiordomo tecnologico.",
+    "Rispondi a voce: frasi brevi, massimo tre frasi, nessun elenco, nessun simbolo strano, niente markdown.",
+    "Se non sai qualcosa, dillo in una frase. Non inventare.",
+    "Dai del tu, con discrezione. Chiama l'utente per nome solo se te lo dice."
+  ].join(" ");
+
+  var $ = function (id) { return document.getElementById(id); };
+  var setupEl = $("setup"), mainEl = $("main"), logEl = $("log"), statusEl = $("status");
+  var talkEl = $("talk"), keyInput = $("keyInput"), saveKey = $("saveKey"), setupErr = $("setupErr");
+  var formEl = $("textForm"), textInput = $("textInput"), resetKey = $("resetKey");
+  var wakeToggle = $("wakeToggle");
+  var wakeWarn = $("wakeWarn"), wakeWarnText = $("wakeWarnText"), wakeRetry = $("wakeRetry");
+  var sessioneInfo = $("sessioneInfo");
+  var avatarEl = $("avatar");
+
+  var history = [];
+  var listening = false;
+  var busy = false;
+  var recognition = null;
+  var wakeOn = false;
+  var speakingNow = false;
+  var paused = false;
+  var fallimenti = 0;
+  var riavvioTimer = null;
+  var SESSIONE_MS = 60000;
+  var sessione = null;
+  var voceScelta = null;
+  var avatarStato = "fermo";
+
+  function getKey() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function setKey(k) { try { localStorage.setItem(KEY, k); } catch (e) {} }
+  function dropKey() { try { localStorage.removeItem(KEY); } catch (e) {} }
+  function getWakePref() { try { return localStorage.getItem(WAKE_PREF) === "1"; } catch (e) { return false; } }
+  function setWakePref(v) { try { localStorage.setItem(WAKE_PREF, v ? "1" : "0"); } catch (e) {} }
+
+  /* Il volto è una fotografia: non c'è niente da caricare, cambia solo lo stato visivo. */
+  function initAvatar() {}
+
+  function impostaAvatar(stato) {
+    avatarStato = stato;
+    if (avatarEl) avatarEl.dataset.stato = stato;
+  }
+
+  function render() {
+    var has = getKey().length > 0;
+    setupEl.hidden = has;
+    mainEl.hidden = !has;
+    if (!has) { keyInput.value = ""; keyInput.focus(); return; }
+    initAvatar();
+  }
+
+  function addMsg(role, text) {
+    var d = document.createElement("div");
+    d.className = "msg " + role;
+    d.textContent = text;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setStatus(t) {
+    statusEl.textContent = t;
+    if (t === "Penso…") { impostaAvatar("pensa"); }
+    else if (t === "Parlo…") { impostaAvatar("parla"); }
+    else if (t === "In ascolto…") { impostaAvatar("ascolto"); }
+    else if (t === "Pronto.") { impostaAvatar("fermo"); }
+  }
+
+  function mostraAvviso(testo, conRiprova) {
+    wakeWarnText.textContent = testo;
+    wakeRetry.hidden = !conRiprova;
+    wakeWarn.hidden = false;
+  }
+
+  function nascondiAvviso() {
+    wakeWarn.hidden = true;
+    wakeRetry.hidden = true;
+  }
+
+  function aggiornaSessione() {
+    var attiva = !!(sessione && wakeOn && sessione.attiva());
+    sessioneInfo.classList.toggle("on", attiva);
+    if (!wakeOn) { sessioneInfo.textContent = "Di' «Vanessa» per iniziare."; return; }
+    if (attiva) {
+      var sec = Math.ceil(sessione.residuo() / 1000);
+      sessioneInfo.textContent = "Sessione aperta: parla senza ripetere «Vanessa» (ancora " + sec + " s). Di' «basta» per chiuderla.";
+    } else {
+      sessioneInfo.textContent = "Sessione chiusa: di' «Vanessa» per ricominciare.";
+    }
+  }
+
+  function apriSessione() { if (!wakeOn || !sessione) return; sessione.apri(); aggiornaSessione(); }
+  function chiudiSessione() { if (sessione) sessione.chiudi(); aggiornaSessione(); }
+
+  function statoBase() {
+    if (!wakeOn) return "Pronto.";
+    return sessione && sessione.attiva() ? "Sessione aperta: parla pure." : "In ascolto per «Vanessa».";
+  }
+
+  function beep(volte) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      var n = volte || 1;
+      for (var i = 0; i < n; i++) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.frequency.value = 880;
+        gain.gain.value = 0.07;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.18);
+        osc.stop(ctx.currentTime + i * 0.18 + 0.12);
+      }
+      setTimeout(function () { ctx.close(); }, 400 + n * 200);
+    } catch (e) {}
+  }
+
+  function interrompiAscolto() {
+    if (recognition && listening) { try { recognition.abort(); } catch (e) {} }
+  }
+
+  function fermaTimer() { if (riavvioTimer) { clearTimeout(riavvioTimer); riavvioTimer = null; } }
+
+  function pianificaRiavvio() {
+    fermaTimer();
+    if (!wakeOn || paused || mainEl.hidden) return;
+
+    var soglia = window.Wake ? window.Wake.SOGLIA_SOSPENSIONE : 6;
+    if (fallimenti >= soglia) {
+      mostraAvviso("L'ascolto continuo si è fermato dopo " + fallimenti + " tentativi. Il microfono potrebbe essere occupato da un'altra app. Tocca «Riprova ora».", true);
+      setStatus("Ascolto sospeso.");
+      beep(2);
+      return;
+    }
+
+    var attesa = window.Wake ? window.Wake.prossimaAttesa(fallimenti) : 400;
+    if (fallimenti > 0) {
+      mostraAvviso("Il microfono non riparte (tentativo " + fallimenti + " di " + soglia + "). Nuovo tentativo fra " + (attesa / 1000).toFixed(1) + " secondi.", true);
+      setStatus("Riavvio in corso…");
+    }
+    riavvioTimer = setTimeout(provaRiavvio, attesa);
+  }
+
+  function provaRiavvio() {
+    riavvioTimer = null;
+    if (!wakeOn || paused || listening || busy || speakingNow || mainEl.hidden) return;
+    try { recognition.start(); } catch (e) { fallimenti++; pianificaRiavvio(); }
+  }
+
+  function caricaVoci() {
+    if (!("speechSynthesis" in window)) return;
+    var tutte = window.speechSynthesis.getVoices() || [];
+    if (!tutte.length) return;
+    voceScelta = window.Wake ? window.Wake.scegliVoce(tutte) : tutte[0];
+  }
+
+  function speak(text) {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    speakingNow = true;
+    interrompiAscolto();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = voceScelta && voceScelta.lang ? voceScelta.lang : "it-IT";
+    if (voceScelta) { u.voice = voceScelta; }
+    u.rate = 0.85;
+    u.pitch = 1;
+    u.onstart = function () { setStatus("Parlo…"); };
+    u.onend = function () {
+      speakingNow = false;
+      impostaAvatar("fermo");
+      if (!listening) setStatus(statoBase());
+      pianificaRiavvio();
+    };
+    window.speechSynthesis.speak(u);
+  }
+
+  function stopSpeaking() {
+    speakingNow = false;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }
+
+  function askGroq(text) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 25000);
+    var body = {
+      model: MODEL,
+      temperature: 0.6,
+      max_tokens: 220,
+      messages: [{ role: "system", content: SYSTEM }].concat(history, [{ role: "user", content: text }])
+    };
+    return fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + getKey() },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    }).then(function (res) {
+      if (res.status === 401) throw new Error("Chiave non valida o revocata: controllala nel pulsante «Cambia chiave».");
+      if (res.status === 429) throw new Error("Troppe richieste in poco tempo: aspetta un minuto.");
+      if (!res.ok) throw new Error("Il servizio ha risposto con un errore (" + res.status + ").");
+      return res.json();
+    }).then(function (data) {
+      var out = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!out || !out.trim()) throw new Error("Il modello ha risposto a vuoto.");
+      return out.trim();
+    }).finally(function () { clearTimeout(timer); });
+  }
+
+  function handleUser(text) {
+    var q = (text || "").trim();
+    if (!q || busy) return;
+    busy = true;
+    addMsg("user", q);
+    history.push({ role: "user", content: q });
+    setStatus("Penso…");
+    askGroq(q).then(function (reply) {
+      addMsg("bot", reply);
+      history.push({ role: "assistant", content: reply });
+      if (history.length > 12) history = history.slice(-12);
+      speak(reply);
+    }).catch(function (e) {
+      var msg = e && e.name === "AbortError" ? "Il servizio non risponde: riprova tra poco." : (e && e.message) || "Errore imprevisto.";
+      addMsg("err", msg);
+      setStatus("Errore.");
+      impostaAvatar("fermo");
+      speak("Scusa, qualcosa non ha funzionato.");
+    }).finally(function () { busy = false; });
+  }
+
+  function congedo() {
+    chiudiSessione();
+    setStatus(statoBase());
+    speak("Va bene, chiudo.");
+  }
+
+  function gestisciTrascrizione(testo) {
+    var t = (testo || "").trim();
+    if (!t || !window.Wake) return;
+
+    var esito = window.Wake.estraiComando(t, PAROLA);
+    if (esito.attivato) {
+      if (esito.comando && window.Wake.eChiusura(esito.comando)) { congedo(); return; }
+      beep();
+      apriSessione();
+      if (esito.comando) { handleUser(esito.comando); }
+      else { setStatus("Ti ascolto…"); }
+      return;
+    }
+
+    if (sessione && sessione.attiva()) {
+      if (window.Wake.eChiusura(t)) { congedo(); return; }
+      apriSessione();
+      handleUser(t);
+      return;
+    }
+
+    if (wakeOn) setStatus("In ascolto per «Vanessa».");
+  }
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    recognition = new SR();
+    recognition.lang = "it-IT";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = function () {
+      listening = true;
+      talkEl.classList.add("on");
+      impostaAvatar("ascolto");
+      setStatus(wakeOn ? "In ascolto per «Vanessa»." : "In ascolto…");
     };
 
-    // Il microfono muove la bocca dell'avatar con la tua voce
-    document.getElementById("mic").onclick = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      avatar.attachStream(stream);
+    recognition.onresult = function (ev) {
+      var finalText = ev.results[0] ? ev.results[0][0].transcript : "";
+      if (!finalText.trim()) return;
+      fallimenti = 0;
+      nascondiAvviso();
+      gestisciTrascrizione(finalText);
     };
-  </script>
+
+    recognition.onerror = function (ev) {
+      listening = false;
+      talkEl.classList.remove("on");
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        paused = true;
+        mostraAvviso("Microfono bloccato dal browser: consentilo per questo sito nelle impostazioni, poi tocca «Riprova ora».", true);
+        setStatus("Microfono bloccato.");
+        return;
+      }
+      if (ev.error === "aborted") return;
+      if (ev.error === "no-speech") {
+        setStatus(wakeOn ? "In ascolto per «Vanessa»." : "Non ho sentito nulla.");
+        return;
+      }
+      fallimenti++;
+      pianificaRiavvio();
+    };
+
+    recognition.onend = function () {
+      listening = false;
+      talkEl.classList.remove("on");
+      if (wakeOn && !speakingNow && !paused) pianificaRiavvio();
+      else if (statusEl.textContent === "In ascolto…") setStatus("Pronto.");
+    };
+  } else {
+    talkEl.disabled = true;
+    talkEl.setAttribute("aria-label", "Microfono non disponibile");
+    setStatus("Microfono non supportato: usa il campo di testo.");
+  }
+
+  talkEl.addEventListener("click", function () {
+    if (!recognition) return;
+    stopSpeaking();
+    if (listening) {
+      paused = true;
+      fermaTimer();
+      interrompiAscolto();
+      setStatus("In pausa: tocca di nuovo per riattivare.");
+      return;
+    }
+    paused = false;
+    nascondiAvviso();
+    fallimenti = 0;
+    apriSessione();
+    try { recognition.start(); } catch (e) { fallimenti++; pianificaRiavvio(); }
+  });
+
+  wakeToggle.addEventListener("change", function () {
+    wakeOn = wakeToggle.checked;
+    setWakePref(wakeOn);
+    paused = false;
+    fallimenti = 0;
+    nascondiAvviso();
+    fermaTimer();
+    if (wakeOn) {
+      aggiornaSessione();
+      setStatus(statoBase());
+      if (!listening && !speakingNow) { try { recognition && recognition.start(); } catch (e) { fallimenti++; pianificaRiavvio(); } }
+    } else {
+      chiudiSessione();
+      interrompiAscolto();
+      setStatus("Pronto.");
+    }
+  });
+
+  wakeRetry.addEventListener("click", function () {
+    if (!wakeOn) { wakeOn = true; wakeToggle.checked = true; setWakePref(true); }
+    fallimenti = 0;
+    paused = false;
+    nascondiAvviso();
+    fermaTimer();
+    try { recognition && recognition.start(); } catch (e) {}
+    setStatus("Riprovo ad ascoltare…");
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && wakeOn && !paused && !listening) {
+      fallimenti = 0;
+      nascondiAvviso();
+      provaRiavvio();
+    }
+  });
+
+  formEl.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = textInput.value;
+    textInput.value = "";
+    stopSpeaking();
+    handleUser(v);
+  });
+
+  saveKey.addEventListener("click", function () {
+    var k = (keyInput.value || "").trim();
+    if (k.length < 20 || k.indexOf("gsk_") !== 0) {
+      setupErr.hidden = false;
+      setupErr.textContent = "La chiave deve iniziare con gsk_ e sembra troppo corta.";
+      return;
+    }
+    setupErr.hidden = true;
+    setKey(k);
+    render();
+    setStatus("Pronto.");
+    addMsg("bot", "Sono Vanessa. Tocca il microfono e parla, oppure attiva l'ascolto continuo e chiamami Vanessa.");
+  });
+
+  resetKey.addEventListener("click", function () {
+    dropKey();
+    stopSpeaking();
+    paused = true;
+    fermaTimer();
+    interrompiAscolto();
+    render();
+  });
+
+  sessione = window.Wake ? window.Wake.creaSessione(SESSIONE_MS) : null;
+  caricaVoci();
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = caricaVoci;
+    setTimeout(caricaVoci, 600);
+  }
+  wakeOn = getWakePref();
+  wakeToggle.checked = wakeOn;
+  render();
+  aggiornaSessione();
+  setInterval(aggiornaSessione, 1000);
+  if (wakeOn) setStatus("Tocca il microfono per riattivare «Vanessa».");
+  /* il browser a volte ripristina da solo lo stato della casella dopo un ricaricamento */
+  setTimeout(function () { wakeToggle.checked = wakeOn; mainEl.scrollTop = 0; window.scrollTo(0, 0); }, 0);
+})();
+</script>
 </body>
 </html>
