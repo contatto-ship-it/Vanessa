@@ -2,22 +2,27 @@
 
 Assistente vocale con un volto. Nome definitivo: **Vanessa** (prima "Moana").
 
-## Cosa c'è in questo repository
+## Dove vive
 
-- `index.html` — test di un avatar 3D (`brunette-t.glb`) che muove la bocca con la voce del microfono o con un file audio. Usa la libreria `@interviewflowai/talking-avatar` caricata da CDN.
+- Sito online: `https://assistente-vocale-tmcctb-preview.freebuff.site` (ambiente "preview" del sito Freebuff "Assistente vocale").
+- Questo repository è la copia di sicurezza: se una chat sparisce, il progetto resta qui.
 
-## Cosa manca
+## File
 
-- Il codice dell'assistente vocale vero e proprio (chiave Groq, riconoscimento vocale, risposte) sta in un'altra chat e non è ancora in questo repository.
-- Il ritratto scelto per Vanessa (donna in divisa blu scuro con berretto) esiste per ora solo come immagine nella chat; va aggiunto qui come `assets/vanessa-poliziotta.jpg`.
+- `index.html` — la pagina intera: volto, conversazione, microfono, parola di attivazione, campo di testo, gestione della chiave Groq.
+- `wake.js` — parola di attivazione, sessione di dialogo, scelta della voce italiana, politica di riavvio del microfono.
+- `assets/vanessa-poliziotta.jpg` — il ritratto di Vanessa. **Manca ancora in questo repository**: l'immagine si scarica dal sito (indirizzo qui sopra, poi `/assets/vanessa-poliziotta.jpg`) e si trascina nella cartella `assets/`. Senza quel file la pagina mostra il riquadro vuoto al posto del volto.
+- `PROGETTO.md` — queste note.
 
-## Decisioni
+## Come funziona
 
-- Nome definitivo: Vanessa.
-- Il volto sarà un ritratto fotografico oppure la testa 3D di questo repository, da scegliere dopo aver visto il test funzionare.
+- Cervello: Groq (`openai/gpt-oss-120b`), chiamata diretta dal browser con la chiave dell'utente, salvata solo nel `localStorage` del dispositivo.
+- Voce: sintesi vocale del browser (`speechSynthesis`), con preferenza per le voci italiane femminili.
+- Ascolto: Web Speech API del browser, lingua `it-IT`.
+- Il volto è una fotografia: si illumina quando ascolta, si spegne quando pensa, si scalda quando risponde, ma non può muovere la bocca.
 
 ## Prossimi passi
 
-1. Portare in questo repository il codice dell'assistente vocale.
-2. Unire voce e volto in una sola pagina.
-3. Sostituire "Moana" con "Vanessa" nel sito online.
+1. Caricare `assets/vanessa-poliziotta.jpg` in questo repository (basta trascinarlo dalla pagina del repository).
+2. Valutare un servizio di voce italiana che restituisca l'audio: Groq copre solo inglese e arabo, quindi con Groq la bocca non può muoversi.
+3. Dopo ogni modifica: aggiornare il sito online, perché questa copia non si pubblica da sola.
